@@ -1,0 +1,4 @@
+({
+    "button": Image(path: "button.png"),
+    "font": File(path: "prstartk.ttf"),
+})

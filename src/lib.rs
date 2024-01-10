@@ -1,41 +1,36 @@
 //! This crate simplifies the process of creating widgets in bevy using a simple extensible DSL.
 
-mod widgets;
 #[cfg(feature = "class_helpers")]
 pub mod class_helpers;
+mod widgets;
 
-use bevy_text::TextStyle;
-pub use widgets::*;
-use bevy_ui::node_bundles::{NodeBundle, ImageBundle, TextBundle, ButtonBundle};
-use bevy_asset::AssetServer;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::system::EntityCommands;
 use bevy_ecs::bundle::Bundle;
-use bevy_hierarchy::{ChildBuilder, BuildChildren};
-
+use bevy_ecs::system::{EntityCommands, Resource};
+use bevy_ecs::{all_tuples, entity::Entity, world::World};
+use bevy_hierarchy::{BuildChildren, ChildBuilder};
+pub use widgets::*;
 
 /// Wrapper for [`ChildBuilder`] that also propogates an [`AssetServer`] for the children that need it.
 // It has enough ' for a lifetime ;)
 pub struct UiChildBuilder<'a, 'b, 'c, 'd> {
     builder: &'a mut ChildBuilder<'b, 'c, 'd>,
-    assets: &'a AssetServer
+    world: &'a World,
 }
 
 impl<'a, 'b, 'c, 'd> UiChildBuilder<'a, 'b, 'c, 'd> {
     pub fn spawn(&mut self, bundle: impl Bundle) -> UiEntityCommands<'a, 'b, 'c, '_> {
         let commands: EntityCommands<'b, 'c, '_> = self.builder.spawn(bundle);
         UiEntityCommands {
-            assets: self.assets,
-            commands
+            world: self.world,
+            commands,
         }
     }
-    pub fn assets(&self) -> &AssetServer { self.assets }
 }
 
 /// Wrapper for [`EntityCommands`] that also propagates an [`AssetServer`] for the children that need it.
 pub struct UiEntityCommands<'a, 'b, 'c, 'd> {
     commands: EntityCommands<'b, 'c, 'd>,
-    assets: &'a AssetServer
+    world: &'a World,
 }
 
 impl<'a, 'b, 'c, 'd> UiEntityCommands<'a, 'b, 'c, 'd> {
@@ -49,8 +44,8 @@ impl<'a, 'b, 'c, 'd> UiEntityCommands<'a, 'b, 'c, 'd> {
     pub fn with_children(mut self, spawn_children: impl FnOnce(&mut UiChildBuilder)) -> Self {
         self.commands.with_children(|builder| {
             let mut ui_builder = UiChildBuilder {
-                assets: self.assets,
-                builder
+                world: self.world,
+                builder,
             };
             spawn_children(&mut ui_builder);
         });
@@ -59,151 +54,46 @@ impl<'a, 'b, 'c, 'd> UiEntityCommands<'a, 'b, 'c, 'd> {
 }
 
 /// Something that can overwrite a value, typically a node bundle.
-pub trait Class<B> {
-    fn apply(self, b: &mut B);
+
+pub trait Class<P> {
+    type In;
+    fn apply(self, b: &mut Self::In, world: &World);
 }
 
-impl<T> Class<T> for () {
-    fn apply(self, _b: &mut T) {}
-}
-
-impl<F, B> Class<B> for F
-where
-    F: FnOnce(&mut B),
-{
-    fn apply(self, b: &mut B) {
-        self(b);
+macro_rules! impl_class_tuple {
+    ($($P: ident),*) => {
+        impl<B, F, $($P),*> Class<(B, $($P,)*)> for F
+        where
+            F: FnOnce(&mut B, $(& $P), *),
+            $($P: Resource,)*
+        {
+            type In = B;
+            fn apply(self, b: &mut B, world: &World) {
+                self(b, $(world.resource::<$P>(),)*);
+            }
+        }
     }
 }
 
-impl<F1, F2, B> Class<B> for (F1, F2)
-where
-    F1: Class<B>,
-    F2: Class<B>,
-{
-    fn apply(self, b: &mut B) {
-        self.0.apply(b);
-        self.1.apply(b);
-    }
+all_tuples!(impl_class_tuple, 0, 5, P);
+
+macro_rules! impl_class_more_tuple {
+    ($(($P: ident, $p: ident)),*) => {
+        #[allow(non_snake_case)]
+        impl<B, $($P, $p),*> Class<(B, $($P,)*)> for ($($p,)*)
+        where
+            $($p: Class<$P, In = B>,)*
+        {
+            type In = B;
+            fn apply(self, b: &mut Self::In, world: &World) {
+                let ($($p,)*) = self;
+                $($p.apply(b, world);)*
+            }
+        }
+    };
 }
 
-impl<F1, F2, F3, B> Class<B> for (F1, F2, F3)
-where
-    F1: Class<B>,
-    F2: Class<B>,
-    F3: Class<B>,
-{
-    fn apply(self, b: &mut B) {
-        self.0.apply(b);
-        self.1.apply(b);
-        self.2.apply(b);
-    }
-}
-
-impl<F1, F2, F3, F4, B> Class<B> for (F1, F2, F3, F4)
-where
-    F1: Class<B>,
-    F2: Class<B>,
-    F3: Class<B>,
-    F4: Class<B>,
-{
-    fn apply(self, b: &mut B) {
-        self.0.apply(b);
-        self.1.apply(b);
-        self.2.apply(b);
-        self.3.apply(b);
-    }
-}
-
-impl Class<NodeBundle> for NodeBundle {
-    fn apply(self, b: &mut NodeBundle) {
-        *b = self;
-    }
-}
-
-impl Class<ImageBundle> for ImageBundle {
-    fn apply(self, b: &mut ImageBundle) {
-        *b = self;
-    }
-}
-
-
-
-/// Something that can overwrite a value, typically a node bundle.
-/// Depends on an [`AssetServer`], unlike [`Class`].
-pub trait AssetClass<B> {
-    fn apply(self, assets: &AssetServer, b: &mut B);
-}
-
-impl<T> AssetClass<T> for () {
-    fn apply(self, _a: &AssetServer, _b: &mut T) {}
-}
-
-impl<F, B> AssetClass<B> for F
-where
-    F: FnOnce(&AssetServer, &mut B)
-{
-    fn apply(self, a: &AssetServer, b: &mut B) {
-        self(a, b);
-    }
-}
-
-impl<F1, F2, B> AssetClass<B> for (F1, F2)
-where
-    F1: AssetClass<B>,
-    F2: AssetClass<B>,
-{
-    fn apply(self, a: &AssetServer, b: &mut B) {
-        self.0.apply(a, b);
-        self.1.apply(a, b);
-    }
-}
-
-impl<F1, F2, F3, B> AssetClass<B> for (F1, F2, F3)
-where
-    F1: AssetClass<B>,
-    F2: AssetClass<B>,
-    F3: AssetClass<B>,
-{
-    fn apply(self, a: &AssetServer, b: &mut B) {
-        self.0.apply(a, b);
-        self.1.apply(a, b);
-        self.2.apply(a, b);
-    }
-}
-
-impl<F1, F2, F3, F4, B> AssetClass<B> for (F1, F2, F3, F4)
-where
-    F1: AssetClass<B>,
-    F2: AssetClass<B>,
-    F3: AssetClass<B>,
-    F4: AssetClass<B>,
-{
-    fn apply(self, a: &AssetServer, b: &mut B) {
-        self.0.apply(a, b);
-        self.1.apply(a, b);
-        self.2.apply(a, b);
-        self.3.apply(a, b);
-    }
-}
-
-impl AssetClass<ButtonBundle> for ButtonBundle {
-    fn apply(self, _a: &AssetServer, b: &mut ButtonBundle) {
-        *b = self;
-    }
-}
-
-impl AssetClass<TextBundle> for TextBundle {
-    fn apply(self, _a: &AssetServer, b: &mut TextBundle) {
-        *b = self;
-    }
-}
-
-impl AssetClass<TextStyle> for TextStyle {
-    fn apply(self, _a: &AssetServer, b: &mut TextStyle) {
-        *b = self;
-    }
-}
+all_tuples!(impl_class_more_tuple, 0, 5, P, S);
 
 /// Adds a helper method to [`Entity`] that allows it to be sent to an [`Option`][`Entity`]
 /// ergonomically.

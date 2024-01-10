@@ -6,7 +6,7 @@ use classes::*;
 #[derive(Component, Debug)]
 enum UiId {
     HiyaButton,
-    HowdyButton
+    HowdyButton,
 }
 
 /// Inline version of example.rs.
@@ -19,16 +19,14 @@ fn main() {
         .run();
 }
 
-fn startup(mut commands: Commands, assets: Res<AssetServer>, mut scale: ResMut<UiScale>) {
-
+fn startup(mut commands: Commands, world: &World) {
     commands.spawn(Camera2dBundle::default());
-    scale.0 = 2.0;
 
-    root(c_root, &assets, &mut commands, |p| {
+    root(c_root, world, &mut commands, |p| {
         node((c_half, c_green), p, |p| {
             text("This is the left pane!", c_text, c_pixel, p);
             text("Do you like it?", c_text, c_pixel, p);
-            text_buttoni("Hiya", c_button_left, c_pixel, UiId::HiyaButton, p);      // Inline variant of text_button
+            text_buttoni("Hiya", c_button_left, c_pixel, UiId::HiyaButton, p); // Inline variant of text_button
             grid(6, 6, c_grid, p, |p, _row, _col| {
                 image(c_inv_slot, p);
             });
@@ -37,7 +35,8 @@ fn startup(mut commands: Commands, assets: Res<AssetServer>, mut scale: ResMut<U
         node((c_half, c_blue), p, |p| {
             text("This is the right pane!", c_text, c_pixel, p);
             text("Indeed, I do!", c_text, c_pixel, p);
-            text_buttoni("Howdy", c_button_right, c_pixel, UiId::HowdyButton, p);   // Inline variant of text_button
+            text_buttoni("Howdy", c_button_right, c_pixel, UiId::HowdyButton, p);
+            // Inline variant of text_button
         });
     });
 }

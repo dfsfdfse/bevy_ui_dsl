@@ -24,11 +24,11 @@ pub fn c_blue(b: &mut NodeBundle) {
     b.background_color = Color::rgb_u8(125, 164, 212).into();
 }
 
-pub fn c_text(_a: &AssetServer, b: &mut TextBundle) {
+pub fn c_text(b: &mut TextBundle) {
     b.style.margin = UiRect::all(Val::Px(10.));
 }
 
-pub fn c_button_left(assets: &AssetServer, b: &mut ButtonBundle) {
+pub fn c_button_left(b: &mut ButtonBundle, assets: &AssetServer) {
     let s = &mut b.style;
     s.width = Val::Px(64.);
     s.height = Val::Px(24.);
@@ -38,7 +38,7 @@ pub fn c_button_left(assets: &AssetServer, b: &mut ButtonBundle) {
     b.image = assets.load("button.png").into();
 }
 
-pub fn c_button_right(assets: &AssetServer, b: &mut ButtonBundle) {
+pub fn c_button_right(b: &mut ButtonBundle, assets: &AssetServer) {
     let s = &mut b.style;
     s.width = Val::Px(64.);
     s.height = Val::Px(24.);
@@ -54,13 +54,13 @@ pub fn c_grid(b: &mut NodeBundle) {
     b.style.margin = UiRect::all(Val::Px(10.));
 }
 
-pub fn c_inv_slot(assets: &AssetServer, b: &mut ImageBundle) {
+pub fn c_inv_slot(b: &mut ImageBundle, assets: &AssetServer) {
     b.style.width = Val::Px(32.);
     b.style.height = Val::Px(32.);
     b.image = assets.load("item_slot.png").into();
 }
 
-pub fn c_pixel(assets: &AssetServer, s: &mut TextStyle) {
+pub fn c_pixel(s: &mut TextStyle, assets: &AssetServer) {
     s.font = assets.load("prstartk.ttf").into();
     s.font_size = 8.;
     s.color = Color::WHITE.into();

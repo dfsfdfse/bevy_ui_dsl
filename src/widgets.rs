@@ -1,131 +1,122 @@
-use bevy_asset::AssetServer;
-use bevy_ecs::prelude::Bundle;
-use bevy_text::{TextStyle, TextSection};
+use super::{Class, UiChildBuilder};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::Bundle;
 use bevy_ecs::system::Commands;
-use bevy_ui::{Val, FlexWrap, Style, JustifyContent, AlignItems};
-use bevy_ui::node_bundles::{NodeBundle, TextBundle, ButtonBundle, ImageBundle};
+use bevy_ecs::world::World;
 use bevy_hierarchy::BuildChildren;
-use super::{Class, AssetClass, UiChildBuilder};
-
+use bevy_text::{TextSection, TextStyle};
+use bevy_ui::node_bundles::{ButtonBundle, ImageBundle, NodeBundle, TextBundle};
+use bevy_ui::{AlignItems, FlexWrap, JustifyContent, Style, Val};
 
 /// Spawns a [`NodeBundle`] as the root with children.
-pub fn root(
-    class: impl Class<NodeBundle>,
-    assets: &AssetServer,
+pub fn root<P>(
+    class: impl Class<P, In = NodeBundle>,
+    world: &World,
     commands: &mut Commands,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
-    rooti(class, assets, commands, (), children)
+    rooti(class, world, commands, (), children)
 }
 
 /// Spawns a [`NodeBundle`] as the root with children.
-pub fn rooti(
-    class: impl Class<NodeBundle>,
-    assets: &AssetServer,
+pub fn rooti<P>(
+    class: impl Class<P, In = NodeBundle>,
+    world: &World,
     commands: &mut Commands,
     extras: impl Bundle,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     let mut bundle = NodeBundle::default();
-    class.apply(&mut bundle);
+    class.apply(&mut bundle, world);
     commands
         .spawn((bundle, extras))
         .with_children(|builder| {
-            let mut builder = UiChildBuilder {
-                builder,
-                assets
-            };
+            let mut builder = UiChildBuilder { builder, world };
             children(&mut builder);
         })
         .id()
 }
 
-
 /// Spawns a clear [`NodeBundle`] that takes up the full space of its parent.
 /// Often required for embedding other widgets after the initial widget is spawned.
-pub fn blank(
+pub fn blank<P>(
     parent: Entity,
-    class: impl Class<NodeBundle>,
-    assets: &AssetServer,
+    class: impl Class<P, In = NodeBundle>,
+    world: &World,
     commands: &mut Commands,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
-    blanki(parent, class, assets, commands, (), children)
+    blanki(parent, class, world, commands, (), children)
 }
 
 /// Spawns a clear [`NodeBundle`] that takes up the full space of its parent.
 /// Often required for embedding other widgets after the initial widget is spawned.
-pub fn blanki(
+pub fn blanki<P>(
     parent: Entity,
-    class: impl Class<NodeBundle>,
-    assets: &AssetServer,
+    class: impl Class<P, In = NodeBundle>,
+    world: &World,
     commands: &mut Commands,
     extras: impl Bundle,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     commands
         .entity(parent)
         .with_children(|builder| {
             let mut bundle = NodeBundle::default();
-            class.apply(&mut bundle);
-            let mut builder = UiChildBuilder {
-                builder,
-                assets
-            };
+            class.apply(&mut bundle, world);
+            let mut builder = UiChildBuilder { builder, world };
             builder.spawn((bundle, extras)).with_children(children);
         })
         .id()
 }
 
 /// Spawns a [`NodeBundle`] with children.
-pub fn node(
-    class: impl Class<NodeBundle>,
+pub fn node<P>(
+    class: impl Class<P, In = NodeBundle>,
     parent: &mut UiChildBuilder,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     nodei(class, (), parent, children)
 }
 
-
 /// Spawns a [`NodeBundle`] with children.
-pub fn nodei(
-    class: impl Class<NodeBundle>,
+pub fn nodei<P>(
+    class: impl Class<P, In = NodeBundle>,
     extras: impl Bundle,
     parent: &mut UiChildBuilder,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     let mut bundle = NodeBundle::default();
-    class.apply(&mut bundle);
-    
+    class.apply(&mut bundle, parent.world);
+
     let mut commands = parent.spawn(bundle);
     commands.insert(extras);
     commands.with_children(children).id()
 }
 
 /// Spawns a [`TextBundle`].
-pub fn text(
+pub fn text<P, P1>(
     text: impl Into<String>,
-    class: impl AssetClass<TextBundle>,
-    text_class: impl AssetClass<TextStyle>,
-    parent: &mut UiChildBuilder
+    class: impl Class<P, In = TextBundle>,
+    text_class: impl Class<P1, In = TextStyle>,
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     texti(text, class, text_class, (), parent)
 }
 
 /// Spawns a [`TextBundle`].
-pub fn texti(
+pub fn texti<P, P1>(
     text: impl Into<String>,
-    class: impl AssetClass<TextBundle>,
-    text_class: impl AssetClass<TextStyle>,
+    class: impl Class<P, In = TextBundle>,
+    text_class: impl Class<P1, In = TextStyle>,
     extras: impl Bundle,
-    parent: &mut UiChildBuilder
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     let mut bundle = TextBundle::default();
-    class.apply(parent.assets, &mut bundle);
+    class.apply(&mut bundle, parent.world);
     let sections = &mut bundle.text.sections;
     let mut style = TextStyle::default();
-    text_class.apply(parent.assets, &mut style);
+    text_class.apply(&mut style, parent.world);
     sections.push(TextSection {
         value: text.into(),
         style,
@@ -134,64 +125,62 @@ pub fn texti(
 }
 
 /// Spawns a [`ButtonBundle`] with children.
-pub fn button(
-    class: impl AssetClass<ButtonBundle>,
+pub fn button<P>(
+    class: impl Class<P, In = ButtonBundle>,
     parent: &mut UiChildBuilder,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     buttoni(class, (), parent, children)
 }
 
 /// Spawns a [`ButtonBundle`] with children.
-pub fn buttoni(
-    class: impl AssetClass<ButtonBundle>,
+pub fn buttoni<P>(
+    class: impl Class<P, In = ButtonBundle>,
     extras: impl Bundle,
     parent: &mut UiChildBuilder,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     let mut bundle = ButtonBundle::default();
-    class.apply(parent.assets, &mut bundle);
-    parent
-        .spawn((bundle, extras))
-        .with_children(children).id()
+    class.apply(&mut bundle, parent.world);
+    parent.spawn((bundle, extras)).with_children(children).id()
 }
 
 /// Spawns a [`ButtonBundle`] without children.
-pub fn simple_button(
-    class: impl AssetClass<ButtonBundle>,
-    parent: &mut UiChildBuilder
+pub fn simple_button<P>(
+    class: impl Class<P, In = ButtonBundle>,
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     simple_buttoni(class, (), parent)
 }
 
 /// Spawns a [`ButtonBundle`] without children.
-pub fn simple_buttoni(
-    class: impl AssetClass<ButtonBundle>,
+pub fn simple_buttoni<P>(
+    class: impl Class<P, In = ButtonBundle>,
     extras: impl Bundle,
-    parent: &mut UiChildBuilder
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     let mut bundle = ButtonBundle::default();
-    class.apply(parent.assets, &mut bundle);
+    class.apply(&mut bundle, parent.world);
     parent.spawn((bundle, extras)).id()
 }
 
 /// Spawns a [`ButtonBundle`] with a single [`TextBundle`] as its child.
-pub fn text_button(
+pub fn text_button<P, P1>(
     txt: impl Into<String>,
-    class: impl AssetClass<ButtonBundle>,
-    text_style: impl AssetClass<TextStyle>,
-    parent: &mut UiChildBuilder
+    class: impl Class<P, In = ButtonBundle>,
+    text_style: impl Class<P1, In = TextStyle>,
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     text_buttoni(txt, class, text_style, (), parent)
 }
 
 /// Spawns a [`ButtonBundle`] with a single [`TextBundle`] as its child.
-pub fn text_buttoni(
+pub fn text_buttoni<P, P1>(
     txt: impl Into<String>,
-    class: impl AssetClass<ButtonBundle>,
-    text_style: impl AssetClass<TextStyle>,
+    class: impl Class<P, In = ButtonBundle>,
+    text_style: impl Class<P1, In = TextStyle>,
     extras: impl Bundle,
-    parent: &mut UiChildBuilder
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     buttoni(class, extras, parent, |p| {
         text(txt, (), text_style, p);
@@ -199,72 +188,67 @@ pub fn text_buttoni(
 }
 
 /// Spawns an [`ImageBundle`].
-pub fn image(
-    class: impl AssetClass<ImageBundle>,
-    parent: &mut UiChildBuilder
-) -> Entity {
+pub fn image<P>(class: impl Class<P, In = ImageBundle>, parent: &mut UiChildBuilder) -> Entity {
     imagei(class, (), parent)
 }
 
 /// Spawns an [`ImageBundle`].
-pub fn imagei(
-    class: impl AssetClass<ImageBundle>,
+pub fn imagei<P>(
+    class: impl Class<P, In = ImageBundle>,
     extras: impl Bundle,
-    parent: &mut UiChildBuilder
+    parent: &mut UiChildBuilder,
 ) -> Entity {
     let mut bundle = ImageBundle::default();
-    class.apply(parent.assets, &mut bundle);
+    class.apply(&mut bundle, parent.world);
     parent.spawn((bundle, extras)).id()
 }
 
 /// Spawns an [`ImageBundle`] with children.
-pub fn image_pane(
-    class: impl AssetClass<ImageBundle>,
+pub fn image_pane<P>(
+    class: impl Class<P, In = ImageBundle>,
     parent: &mut UiChildBuilder,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     image_panei(class, parent, (), children)
 }
 
 /// Spawns an [`ImageBundle`] with children.
-pub fn image_panei(
-    class: impl AssetClass<ImageBundle>,
+pub fn image_panei<P>(
+    class: impl Class<P, In = ImageBundle>,
     parent: &mut UiChildBuilder,
     extras: impl Bundle,
-    children: impl FnOnce(&mut UiChildBuilder)
+    children: impl FnOnce(&mut UiChildBuilder),
 ) -> Entity {
     let mut bundle = ImageBundle::default();
-    class.apply(parent.assets, &mut bundle);
-    parent
-        .spawn((bundle, extras))
-        .with_children(children).id()
+    class.apply(&mut bundle, parent.world);
+    parent.spawn((bundle, extras)).with_children(children).id()
 }
 
 /// Spawns a [`NodeBundle`] composed of [`NodeBundle`] cells in the form of a grid.
 /// The callback function argument spawns the contents of those cells.
-pub fn grid(
+pub fn grid<P>(
     rows: usize,
     columns: usize,
-    class: impl Class<NodeBundle>,
+    class: impl Class<P, In = NodeBundle>,
     parent: &mut UiChildBuilder,
-    children: impl FnMut(&mut UiChildBuilder, usize, usize)
+    children: impl FnMut(&mut UiChildBuilder, usize, usize),
 ) -> Entity {
     gridi(rows, columns, class, (), parent, children)
 }
 
 /// Spawns a [`NodeBundle`] composed of [`NodeBundle`] cells in the form of a grid.
 /// The callback function argument spawns the contents of those cells.
-pub fn gridi(
+pub fn gridi<P>(
     rows: usize,
     columns: usize,
-    class: impl Class<NodeBundle>,
+    class: impl Class<P, In = NodeBundle>,
     extras: impl Bundle,
     parent: &mut UiChildBuilder,
-    mut children: impl FnMut(&mut UiChildBuilder, usize, usize)
+    mut children: impl FnMut(&mut UiChildBuilder, usize, usize),
 ) -> Entity {
     // Spawns container
     let mut container_bundle = NodeBundle::default();
-    class.apply(&mut container_bundle);
+    class.apply(&mut container_bundle, parent.world);
     container_bundle.style.flex_wrap = FlexWrap::Wrap;
     let mut container = parent.spawn((container_bundle, extras));
 

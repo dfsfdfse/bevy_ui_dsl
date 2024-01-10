@@ -18,7 +18,7 @@ fn main() {
         .run();
 }
 
-fn startup(mut commands: Commands, assets: Res<AssetServer>, mut scale: ResMut<UiScale>) {
+fn startup(mut commands: Commands, world: &World, mut scale: ResMut<UiScale>) {
 
     // Obligatory camera
     commands.spawn(Camera2dBundle::default());
@@ -27,7 +27,7 @@ fn startup(mut commands: Commands, assets: Res<AssetServer>, mut scale: ResMut<U
     // Spawns ui and gathers entity ids
     let mut hiya = None;
     let mut howdy = None;
-    root(c_root, &assets, &mut commands, |p| {                                  // Spawns the root NodeBundle. AssetServer gets propagated.
+    root(c_root, world, &mut commands, |p| {                                  // Spawns the root NodeBundle. AssetServer gets propagated.
         node((c_half, c_green), p, |p| {                                        // Spawns the left pane as a NodeBundle.
             text("This is the left pane!", c_text, c_pixel, p);                 // Spawns a TextBundle.
             text("Do you like it?", c_text, c_pixel, p);
